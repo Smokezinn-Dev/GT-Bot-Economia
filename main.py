@@ -1,20 +1,11 @@
 # ============================================================
-# MAIN.PY - v7.0 (Prefixo dinâmico + todas as 8 fases)
-# ============================================================
-# Bot principal:
-#   • Prefix dinâmico (., $, > + custom por guild)
-#   • Verificação via GuildGate (módulos, comandos, canais)
-#   • Rate limit por user
-#   • Memory guard
-#   • Cog loader idempotente
-#   • Sync de slash commands
+# MAIN.PY - v7.0 (CORRIGIDO)
 # ============================================================
 
 import asyncio
 import logging
 import sys
 import time
-from datetime import datetime, timezone
 
 import discord
 from discord.ext import commands
@@ -23,7 +14,7 @@ from config import (
     DISCORD_TOKEN, PREFIX, GUILD_IDS, ENABLE_DEBUG,
     MEMORY_GUARD_MB, LOG_LEVEL,
 )
-from database import init_db, warmup, get_connection
+from database import init_db, warmup
 from utils import GuildGate, memory_mb, memory_guard
 
 
@@ -51,22 +42,14 @@ else:
 # ============================================================
 
 def get_prefix(bot, message):
-    """
-    Retorna lista de prefixos válidos.
-    Aceita: prefixo custom por guild, ".", "$", ">"
-    """
     default_prefix = PREFIX or "."
-
     if not message.guild:
         return [default_prefix, "$", ">"]
-
     try:
         custom = GuildGate.get_prefix(message.guild.id, default_prefix)
     except Exception:
         custom = default_prefix
-
     prefixes = [custom, default_prefix, "$", ">"]
-    # Remove duplicatas mantendo ordem
     return list(dict.fromkeys(prefixes))
 
 
@@ -86,21 +69,22 @@ class GTBot(commands.Bot):
             command_prefix=get_prefix,
             intents=intents,
             case_insensitive=True,
-            help_command=None,          # Desabilita help padrão
+            help_command=None,
             activity=discord.Activity(
                 type=discord.ActivityType.watching,
                 name="🌍 economia global | .help7"
             ),
             status=discord.Status.online,
             allowed_mentions=discord.AllowedMentions(
-                everyone=False,
-                roles=False,
-                users=True,
-                replied_user=False,
+                everyone=False, roles=False, users=True, replied_user=False,
             ),
         )
 
-        # Cogs por fase
+        # ============================================================
+        # COGS (só arquivos COM setup() — nunca engines)
+        # ============================================================
+
+        # v6.2
         self.cogs_v6 = [
             "commands_control",
             "commands_branding",
@@ -120,67 +104,71 @@ class GTBot(commands.Bot):
             "commands_economy_missions",
         ]
 
+        # v7.0 — Fase 1 (só o que é Cog)
         self.cogs_v7_fase1 = [
-            "price_engine",
-            "inflation_engine",
-            "economy_tick",
-            "commands_president",
+            "economy_tick",           # Cog
+            "commands_president",      # Cog
+            # ❌ price_engine     → ENGINE (não tem setup)
+            # ❌ inflation_engine → ENGINE (não tem setup)
         ]
 
+        # v7.0 — Fase 2
         self.cogs_v7_fase2 = [
-            "resource_engine",
-            "job_engine",
-            "company_engine",
-            "commands_companies",
+            "commands_companies",      # Cog
+            # ❌ resource_engine  → ENGINE
+            # ❌ job_engine       → ENGINE
+            # ❌ company_engine   → ENGINE
         ]
 
+        # v7.0 — Fase 3
         self.cogs_v7_fase3 = [
-            "credit_engine",
-            "bank_engine",
-            "central_bank",
-            "commands_credit",
+            "commands_credit",         # Cog
+            # ❌ credit_engine    → ENGINE
+            # ❌ bank_engine      → ENGINE
+            # ❌ central_bank     → ENGINE
         ]
 
+        # v7.0 — Fase 4
         self.cogs_v7_fase4 = [
-            "market_engine",
-            "commodity_engine",
-            "futures_engine",
-            "commands_market_v7",
+            "commands_market_v7",      # Cog
+            # ❌ market_engine    → ENGINE
+            # ❌ commodity_engine → ENGINE
+            # ❌ futures_engine   → ENGINE
         ]
 
+        # v7.0 — Fase 5
         self.cogs_v7_fase5 = [
-            "political_engine",
-            "policy_engine",
-            "treasury_engine",
-            "tax_engine",
-            "commands_government",
+            "commands_government",     # Cog
+            # ❌ political_engine → ENGINE
+            # ❌ policy_engine    → ENGINE
+            # ❌ treasury_engine  → ENGINE
+            # ❌ tax_engine       → ENGINE
         ]
 
+        # v7.0 — Fase 6
         self.cogs_v7_fase6 = [
-            "currency_engine",
-            "trade_engine",
-            "diplomacy_engine",
-            "commands_global",
+            "commands_global",         # Cog
+            # ❌ currency_engine  → ENGINE
+            # ❌ trade_engine     → ENGINE
+            # ❌ diplomacy_engine → ENGINE
         ]
 
+        # v7.0 — Fase 7
         self.cogs_v7_fase7 = [
-            "realestate_engine",
-            "rent_engine",
-            "mortgage_engine",
-            "commands_realestate",
+            "commands_realestate",     # Cog
+            # ❌ realestate_engine → ENGINE
+            # ❌ rent_engine       → ENGINE
+            # ❌ mortgage_engine   → ENGINE
         ]
 
+        # v7.0 — Fase 8
         self.cogs_v7_fase8 = [
-            "dashboard_engine",
-            "balance_engine",
-            "commands_admin_v7",
+            "commands_admin_v7",       # Cog
+            # ❌ dashboard_engine → ENGINE
+            # ❌ balance_engine   → ENGINE
         ]
 
         self._startup_time = time.time()
-
-    # ============================================================
-    # SETUP HOOK
-    # ============================================================
 
     async def setup_hook(self):
         log.info("🔧 Carregando cogs...")
@@ -190,7 +178,6 @@ class GTBot(commands.Bot):
         await self._sync_commands()
 
     async def _load_all_cogs(self):
-        """Carrega todos os cogs de todas as fases."""
         all_cogs = (
             self.cogs_v6 +
             self.cogs_v7_fase1 +
@@ -215,10 +202,7 @@ class GTBot(commands.Bot):
                     log.debug(f"  ✅ {ext}")
             except commands.ExtensionAlreadyLoaded:
                 skipped += 1
-                log.debug(f"  ⏭️ {ext} (já carregado)")
-            except ModuleNotFoundError as e:
-                failed += 1
-                log.warning(f"  ⚠️ {ext} — módulo não encontrado: {e}")
+                log.debug(f"  ⏭️ {ext}")
             except Exception as e:
                 failed += 1
                 log.error(f"  ❌ {ext} — {type(e).__name__}: {e}")
@@ -226,7 +210,6 @@ class GTBot(commands.Bot):
         log.info(f"📦 Cogs: {loaded} carregados, {skipped} já existiam, {failed} falharam")
 
     async def _sync_commands(self):
-        """Sincroniza slash commands."""
         try:
             if GUILD_IDS:
                 for gid in GUILD_IDS:
@@ -236,20 +219,16 @@ class GTBot(commands.Bot):
                     log.info(f"  ✅ {len(synced)} slash em guild {gid}")
             else:
                 synced = await self.tree.sync()
-                log.info(f"  ✅ {len(synced)} slash globais sincronizados")
+                log.info(f"  ✅ {len(synced)} slash globais")
         except Exception as e:
             log.warning(f"⚠️ Sync slash: {e}")
-
-    # ============================================================
-    # EVENTOS
-    # ============================================================
 
     async def on_ready(self):
         uptime = time.time() - self._startup_time
         mem = memory_mb()
 
         log.info("=" * 60)
-        log.info(f"✅ BOT ONLINE: {self.user} (ID: {self.user.id})")
+        log.info(f"✅ BOT ONLINE: {self.user}")
         log.info(f"📡 Guilds: {len(self.guilds)}")
         log.info(f"👥 Users: {sum(g.member_count or 0 for g in self.guilds)}")
         log.info(f"⚡ Cogs: {len(self.cogs)}")
@@ -258,11 +237,9 @@ class GTBot(commands.Bot):
         log.info(f"⏱️ Startup: {uptime:.1f}s")
         log.info("=" * 60)
 
-        # Inicializa recursos v7 se houver guilds
         await self._init_guilds_v7()
 
     async def _init_guilds_v7(self):
-        """Pré-popula dados v7 (recursos, commodities, moedas)."""
         try:
             from resource_engine import ResourceEngine
             from commodity_engine import CommodityEngine
@@ -275,83 +252,63 @@ class GTBot(commands.Bot):
                     CurrencyEngine.get_currency(guild.id)
                 except Exception as e:
                     log.warning(f"⚠️ Init v7 {guild.id}: {e}")
-        except ImportError:
-            # v7 não instalado — ignora silenciosamente
+        except Exception:
             pass
-        except Exception as e:
-            log.warning(f"⚠️ Init v7 global: {e}")
 
-    # ============================================================
-    # VERIFICAÇÃO GLOBAL (GuildGate)
-    # ============================================================
-
-    async def on_message(self, message: discord.Message):
-        # Ignora bots
+    async def on_message(self, message):
         if message.author.bot:
             return
 
-        # DM: processa normal
         if not message.guild:
             try:
                 await self.process_commands(message)
-            except Exception as e:
-                log.error(f"Erro DM: {e}")
+            except Exception:
+                pass
             return
 
-        # Verifica se é comando (prefix match)
         ctx = await self.get_context(message)
         if not ctx.valid:
             return
 
-        # ----- Verificações v7 -----
         guild_id = message.guild.id
         user_id = message.author.id
 
         try:
-            # 1. Manutenção
             if GuildGate.is_maintenance(guild_id):
-                # Bypass?
                 role_ids = [r.id for r in message.author.roles]
                 if not GuildGate.is_bypassed(guild_id, user_id, role_ids):
-                    # Ignora silenciosamente
                     return
 
-            # 2. Comando desativado
             cmd_name = ctx.command.name if ctx.command else ""
             if cmd_name and GuildGate.is_command_off(guild_id, cmd_name):
                 role_ids = [r.id for r in message.author.roles]
                 if not GuildGate.is_bypassed(guild_id, user_id, role_ids):
                     return
 
-            # 3. Comando bloqueado no canal
             if cmd_name and GuildGate.is_command_off_channel(
                 guild_id, cmd_name, message.channel.id
             ):
                 role_ids = [r.id for r in message.author.roles]
                 if not GuildGate.is_bypassed(guild_id, user_id, role_ids):
                     return
+        except Exception:
+            pass
 
-        except Exception as e:
-            # Nunca trava por causa do gate
-            log.debug(f"Gate check erro: {e}")
-
-        # Processa comando
         try:
             await self.process_commands(message)
         except Exception as e:
             log.error(f"Erro process_commands: {e}")
 
-    async def on_command_error(self, ctx: commands.Context, error):
-        """Handler global de erros de comando."""
+    async def on_command_error(self, ctx, error):
         from embeds import embed_error, embed_warning
 
         if isinstance(error, commands.CommandNotFound):
-            return  # Ignora silenciosamente
+            return
 
         if isinstance(error, commands.MissingPermissions):
             try:
                 await ctx.send(embed=embed_error(
-                    f"❌ Você não tem permissão: `{', '.join(error.missing_permissions)}`"
+                    f"❌ Sem permissão: `{', '.join(error.missing_permissions)}`"
                 ), delete_after=10)
             except Exception:
                 pass
@@ -387,22 +344,18 @@ class GTBot(commands.Bot):
         if isinstance(error, commands.CheckFailure):
             return
 
-        # Erro real
         log.error(f"Erro em {ctx.command}: {type(error).__name__}: {error}")
         if ENABLE_DEBUG:
             import traceback
             traceback.print_exception(type(error), error, error.__traceback__)
 
         try:
-            await ctx.send(embed=embed_error(
-                "❌ Ocorreu um erro interno. Tente novamente."
-            ), delete_after=10)
+            await ctx.send(embed=embed_error("❌ Erro interno."), delete_after=10)
         except Exception:
             pass
 
-    async def on_guild_join(self, guild: discord.Guild):
+    async def on_guild_join(self, guild):
         log.info(f"➕ Entrou em: {guild.name} ({guild.id})")
-        # Inicializa recursos v7
         try:
             from resource_engine import ResourceEngine
             from commodity_engine import CommodityEngine
@@ -413,7 +366,7 @@ class GTBot(commands.Bot):
         except Exception:
             pass
 
-    async def on_guild_remove(self, guild: discord.Guild):
+    async def on_guild_remove(self, guild):
         log.info(f"➖ Saiu de: {guild.name} ({guild.id})")
 
 
@@ -422,34 +375,29 @@ class GTBot(commands.Bot):
 # ============================================================
 
 async def main():
-    # ---- Inicializa DB ----
     log.info("🔌 Conectando MongoDB...")
     try:
         init_db()
         if warmup():
             log.info("✅ MongoDB OK")
         else:
-            log.warning("⚠️ MongoDB warmup falhou — continuando")
+            log.warning("⚠️ MongoDB warmup falhou")
     except Exception as e:
         log.error(f"❌ Falha MongoDB: {e}")
         sys.exit(1)
 
-    # ---- Cria bot ----
     bot = GTBot()
 
-    # ---- Memory guard loop ----
     async def memory_watchdog():
-        """Roda a cada 5min, força GC se RAM estourar."""
         await bot.wait_until_ready()
         while not bot.is_closed():
             try:
                 if memory_guard(MEMORY_GUARD_MB):
-                    log.warning(f"⚠️ RAM alta ({memory_mb():.1f}MB) — GC forçado")
+                    log.warning(f"⚠️ RAM alta ({memory_mb():.1f}MB) — GC")
             except Exception:
                 pass
             await asyncio.sleep(300)
 
-    # ---- Roda bot ----
     try:
         async with bot:
             bot.loop.create_task(memory_watchdog())
