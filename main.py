@@ -1,5 +1,8 @@
 # ============================================================
-# MAIN.PY - v7.0 (CORRIGIDO)
+# MAIN.PY - v7.0 FINAL (CORRIGIDO)
+# ============================================================
+# Carrega APENAS cogs (arquivos com setup()).
+# Engines são importadas pelos cogs, não carregadas aqui.
 # ============================================================
 
 import asyncio
@@ -81,10 +84,10 @@ class GTBot(commands.Bot):
         )
 
         # ============================================================
-        # COGS (só arquivos COM setup() — nunca engines)
+        # COGS (somente arquivos COM setup())
         # ============================================================
 
-        # v6.2
+        # v6.2 — 16 cogs
         self.cogs_v6 = [
             "commands_control",
             "commands_branding",
@@ -104,71 +107,53 @@ class GTBot(commands.Bot):
             "commands_economy_missions",
         ]
 
-        # v7.0 — Fase 1 (só o que é Cog)
+        # v7.0 Fase 1 — 2 cogs
         self.cogs_v7_fase1 = [
-            "economy_tick",           # Cog
-            "commands_president",      # Cog
-            # ❌ price_engine     → ENGINE (não tem setup)
-            # ❌ inflation_engine → ENGINE (não tem setup)
+            "economy_tick",
+            "commands_president",
         ]
 
-        # v7.0 — Fase 2
+        # v7.0 Fase 2 — 1 cog
         self.cogs_v7_fase2 = [
-            "commands_companies",      # Cog
-            # ❌ resource_engine  → ENGINE
-            # ❌ job_engine       → ENGINE
-            # ❌ company_engine   → ENGINE
+            "commands_companies",
         ]
 
-        # v7.0 — Fase 3
+        # v7.0 Fase 3 — 1 cog
         self.cogs_v7_fase3 = [
-            "commands_credit",         # Cog
-            # ❌ credit_engine    → ENGINE
-            # ❌ bank_engine      → ENGINE
-            # ❌ central_bank     → ENGINE
+            "commands_credit",
         ]
 
-        # v7.0 — Fase 4
+        # v7.0 Fase 4 — 1 cog
         self.cogs_v7_fase4 = [
-            "commands_market_v7",      # Cog
-            # ❌ market_engine    → ENGINE
-            # ❌ commodity_engine → ENGINE
-            # ❌ futures_engine   → ENGINE
+            "commands_market_v7",
         ]
 
-        # v7.0 — Fase 5
+        # v7.0 Fase 5 — 1 cog
         self.cogs_v7_fase5 = [
-            "commands_government",     # Cog
-            # ❌ political_engine → ENGINE
-            # ❌ policy_engine    → ENGINE
-            # ❌ treasury_engine  → ENGINE
-            # ❌ tax_engine       → ENGINE
+            "commands_government",
         ]
 
-        # v7.0 — Fase 6
+        # v7.0 Fase 6 — 1 cog
         self.cogs_v7_fase6 = [
-            "commands_global",         # Cog
-            # ❌ currency_engine  → ENGINE
-            # ❌ trade_engine     → ENGINE
-            # ❌ diplomacy_engine → ENGINE
+            "commands_global",
         ]
 
-        # v7.0 — Fase 7
+        # v7.0 Fase 7 — 1 cog
         self.cogs_v7_fase7 = [
-            "commands_realestate",     # Cog
-            # ❌ realestate_engine → ENGINE
-            # ❌ rent_engine       → ENGINE
-            # ❌ mortgage_engine   → ENGINE
+            "commands_realestate",
         ]
 
-        # v7.0 — Fase 8
+        # v7.0 Fase 8 — 1 cog
         self.cogs_v7_fase8 = [
-            "commands_admin_v7",       # Cog
-            # ❌ dashboard_engine → ENGINE
-            # ❌ balance_engine   → ENGINE
+            "commands_admin_v7",
         ]
 
+        # Total esperado: 25 cogs
         self._startup_time = time.time()
+
+    # ============================================================
+    # SETUP HOOK
+    # ============================================================
 
     async def setup_hook(self):
         log.info("🔧 Carregando cogs...")
@@ -202,12 +187,12 @@ class GTBot(commands.Bot):
                     log.debug(f"  ✅ {ext}")
             except commands.ExtensionAlreadyLoaded:
                 skipped += 1
-                log.debug(f"  ⏭️ {ext}")
+                log.debug(f"  ⏭️ {ext} (já carregado)")
             except Exception as e:
                 failed += 1
                 log.error(f"  ❌ {ext} — {type(e).__name__}: {e}")
 
-        log.info(f"📦 Cogs: {loaded} carregados, {skipped} já existiam, {failed} falharam")
+        log.info(f"📦 Cogs: {loaded} carregados | {skipped} já existiam | {failed} falharam")
 
     async def _sync_commands(self):
         try:
@@ -222,6 +207,10 @@ class GTBot(commands.Bot):
                 log.info(f"  ✅ {len(synced)} slash globais")
         except Exception as e:
             log.warning(f"⚠️ Sync slash: {e}")
+
+    # ============================================================
+    # EVENTOS
+    # ============================================================
 
     async def on_ready(self):
         uptime = time.time() - self._startup_time
@@ -240,6 +229,7 @@ class GTBot(commands.Bot):
         await self._init_guilds_v7()
 
     async def _init_guilds_v7(self):
+        """Pré-popula dados v7 (recursos, commodities, moedas)."""
         try:
             from resource_engine import ResourceEngine
             from commodity_engine import CommodityEngine
@@ -252,13 +242,16 @@ class GTBot(commands.Bot):
                     CurrencyEngine.get_currency(guild.id)
                 except Exception as e:
                     log.warning(f"⚠️ Init v7 {guild.id}: {e}")
-        except Exception:
-            pass
+        except ImportError:
+            log.warning("⚠️ Engines v7 não instaladas — pulando init")
+        except Exception as e:
+            log.warning(f"⚠️ Init v7 global: {e}")
 
     async def on_message(self, message):
         if message.author.bot:
             return
 
+        # DM
         if not message.guild:
             try:
                 await self.process_commands(message)
@@ -393,7 +386,7 @@ async def main():
         while not bot.is_closed():
             try:
                 if memory_guard(MEMORY_GUARD_MB):
-                    log.warning(f"⚠️ RAM alta ({memory_mb():.1f}MB) — GC")
+                    log.warning(f"⚠️ RAM alta ({memory_mb():.1f}MB) — GC forçado")
             except Exception:
                 pass
             await asyncio.sleep(300)
